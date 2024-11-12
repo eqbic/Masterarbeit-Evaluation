@@ -1,8 +1,7 @@
 import argparse
-import pathlib
 from dataclasses import dataclass
 from typing import List
-
+from pathlib import Path
 import gpxpy
 import gpxpy.gpx
 from pyproj import Proj
@@ -85,7 +84,7 @@ class GpxResult:
 
 
 class GpxEvaluator:
-    def __init__(self, reference_file: str, recorded_file: str):
+    def __init__(self, reference_file: Path, recorded_file: Path):
         self.projection = Proj(proj='utm', zone='32', ellps='WGS84', preserve_units=False)
         self.route_gpx = gpxpy.parse(open(reference_file))
         self.track_gpx = gpxpy.parse(open(recorded_file))
