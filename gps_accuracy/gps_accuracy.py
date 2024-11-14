@@ -64,23 +64,20 @@ def intersection(t, r1, r2):
     return is_on_line((x, y), r1, r2), x, y, distance((x, y), t)
 
 
+@dataclass
 class GpxResult:
-    def __init__(self, track: gpxpy.mod_gpx.GPX, errors: List[float]):
-        self.name = track.name
-        self.start_time, self.end_time = track.get_time_bounds()
-        self.time = track.get_duration()
-        self.mean = np.mean(errors)
-        self.median = np.median(errors)
-        self.percentile = np.percentile(errors, 95)
 
-    def __str__(self):
-        return (f"name:            \t{self.name}s\n"
-                f"start_time:      \t{self.start_time}s\n"
-                f"end_time:        \t{self.end_time}s\n"
-                f"time:            \t{self.time: .2f}s\n"
-                f"errors.mean      \t{self.mean: .2f}m\n"
-                f"errors.median    \t{self.median: .2f}m\n"
-                f"errors.percentile\t{self.percentile: .2f}m")
+    name: str
+    time: float
+    error_mean: float
+    error_median: float
+    error_percentile: float
+    distance: float
+    delta_distance: float
+    zoom_min: float
+    zoom_max: float
+    zoom_mean: float
+    zoom_change: float
 
 
 class GpxEvaluator:
@@ -131,6 +128,33 @@ class GpxEvaluator:
         return coords
 
     def evaluate(self) -> GpxResult:
+        name = self.track_gpx.name
+        time = self.track_gpx.get_duration()
+        errors = self.calculate_errors()
+        error_mean = np.mean(errors)
+        error_median = np.median(errors)
+        error_percentile = np.percentile(errors, 95)
+        distance = self.track_gpx.length_2d()
+        delta_distance = distance - self.route_gpx.length_2d()
+        zooms = self.get_zoom_points()
+        zoom_min = np.min(zooms)
+        zoom_max = np.max(zooms)
+        zoom_mean = np.mean(zooms)
+        zoom_change = self.get_zoom_change(zooms)
+        return GpxResult(name, time, error_mean, error_median, error_percentile, distance, delta_distance, zoom_min, zoom_max, zoom_mean, zoom_change)
+
+    def get_zoom_change(self, zoom_points: List[float]) -> float:
+        return np.sum(np.abs(np.diff(zoom_points)))
+
+    def get_zoom_points(self) -> List[float]:
+        zoom_points = []
+        for track in self.track_gpx.tracks:
+            for segment in track.segments:
+                for point in segment.points:
+                    zoom_points.append(point.elevation)
+        return zoom_points
+
+    def calculate_errors(self) -> List[float]:
         vis = VisGpx()
         errors = []
         # Our task is to find the nearest adjacent pair of points in the route
@@ -169,7 +193,7 @@ class GpxEvaluator:
 
             errors.append(shortest_d)
             vis.append(t, (closest_x, closest_y))
-        return GpxResult(self.track_gpx, errors)
+        return errors
 
 
 # For debug / test purposes, create a GPX file that visualises the
