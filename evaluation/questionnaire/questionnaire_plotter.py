@@ -121,6 +121,7 @@ class QuestionnairePlotter:
             kind="bar",
             title=input_type.name,
             yerr=std_dev,
+            capsize=5,
         )
 
         for bar, value in zip(ax.patches, mean_of_sum.values):
