@@ -59,3 +59,6 @@ class ResultParam(Enum):
     ZoomMax = 8
     ZoomMean = 9
     ZoomChange = 10
+    SummaryScore = 11
+
+

@@ -14,6 +14,14 @@ def parse_csv(path_to_csv: Path) -> DataFrame:
     with open(path_to_csv) as csv_file:
         return pd.read_csv(csv_file)
 
+usage_frequencies = {
+    "noch nie" : 0,
+    "schon einmal genutzt": 1,
+    "hin und wieder": 2,
+    "regelmäßig": 3,
+    "täglich": 4
+}
+
 
 @dataclass
 class QuestionnaireRepository:
@@ -31,13 +39,27 @@ class QuestionnaireRepository:
             RankCategory.Fastest.name: [result.fastest for result in self.results],
             RankCategory.MostAccurate.name: [result.most_accurate for result in self.results],
             RankCategory.Ranking.name: [result.ranking for result in self.results],
-            'UsageFrequency': [result.usage_frequency for result in self.results],
+            'UsageFrequency': [self.get_usage_frequency_score(result.usage_frequency) for result in self.results],
             'Usability': [result.usabilities for result in self.results],
         }
         self.data_frame = pd.DataFrame(data)
 
-    def get_usage_frequency(self):
-        return self.data_frame["UsageFrequency"]
+    def get_usage_frequency_score(self, frequency_dict: Dict[str, str]) -> Dict[str, int]:
+        result = {}
+        for k,v in frequency_dict.items():
+            result[k] = usage_frequencies[v]
+        return result
+
+    def get_usage_frequency(self, users: List[int] = None):
+        usage_frequency = self.data_frame.set_index("UserId")[["UsageFrequency"]]
+        all_devices = set().union(*usage_frequency["UsageFrequency"].values)
+        dict_data = {device: [row.iloc[0].get(device, 0) for _, row in usage_frequency.iterrows()]
+                     for device in all_devices}
+        df_expanded = pd.DataFrame(dict_data, index=usage_frequency.index)
+        df_expanded['Total'] = df_expanded.sum(axis=1)
+        if users is None:
+            return df_expanded
+        return df_expanded.reindex(users)
 
     def parse_data_frame(self, data_frame: DataFrame) -> List[QuestionnaireResult]:
         return [QuestionnaireResult(data_frame.loc[index]) for index in data_frame.index]

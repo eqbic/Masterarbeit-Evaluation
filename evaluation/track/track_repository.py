@@ -6,7 +6,7 @@ from typing import List
 import natsort
 import pandas as pd
 
-from evaluation.common import InputType, Metaphor, ResultParam
+from evaluation.common import InputType, Metaphor, ResultParam, RankCategory
 from evaluation.questionnaire.questionnaire_repository import QuestionnaireRepository
 from evaluation.track.recorded_track import RecordedTrack
 from evaluation.track.reference_track import ReferenceTrack
@@ -35,7 +35,7 @@ class TrackRepository:
         data = {
             'UserId': [track.user_id for track in tracks],
             'Track':  [track.track_id for track in tracks],
-            'InputAll': [f"{track.input_type.name}_{track.metaphor.name}" for track in tracks],
+            'InputAll': [f"{track.input_combination.name}" for track in tracks],
             'InputCategorized': [track.input_type.name for track in tracks],
             ResultParam.Time.name: [track.result.time for track in tracks],
             ResultParam.MeanError.name: [track.result.error_mean for track in tracks],
@@ -47,6 +47,7 @@ class TrackRepository:
             ResultParam.ZoomMax.name: [track.result.zoom_max for track in tracks],
             ResultParam.ZoomMean.name: [track.result.zoom_mean for track in tracks],
             ResultParam.ZoomChange.name: [track.result.zoom_change for track in tracks],
+            ResultParam.SummaryScore.name: [100 / (track.result.time * track.result.error_mean) for track in tracks],
         }
         self.data_frame = pd.DataFrame(data)
 
@@ -58,7 +59,6 @@ class TrackRepository:
     def get_recorded_pathes(self) -> List[Path]:
         return self.recorded_track_pathes
 
-    # type: ignore
     def get_by_track(self, track_id: int) -> List[RecordedTrack]:
         return [track for track in self.recorded_tracks if track.track_id == track_id]
 
@@ -71,7 +71,7 @@ class TrackRepository:
     def get_by_metaphor(self, metaphor: Metaphor) -> List[RecordedTrack]:
         return [track for track in self.recorded_tracks if track.metaphor == metaphor]
 
-    def get_all(self) -> List[RecordedTrack]:  # type: ignore
+    def get_all(self) -> List[RecordedTrack]:
         return self.recorded_tracks
 
     def get_min_by_input(self, param: ResultParam):
@@ -85,3 +85,69 @@ class TrackRepository:
             "UserId")[param.name].idxmax()
         df_min_time = self.data_frame.loc[min_time_indices]
         return df_min_time[["UserId", "InputAll"]]
+
+    def _get_estimated_fastest(self, user_ids, track_id):
+        data =[result.fastest for result in self.question_repo.results if result.user_id in user_ids]
+        return [result[f"Track {track_id}"].name for result in data]
+
+    def _get_estimated_most_accurate(self, user_ids, track_id):
+        data = [result.most_accurate for result in self.question_repo.results if result.user_id in user_ids]
+        return [result[f"Track {track_id}"].name for result in data]
+
+    def _get_actual_data(self, base_data, track_id):
+        return base_data.loc[base_data["Track"] == track_id]["InputAll"].tolist()
+
+    def _get_estimated_data(self,category, user_ids, track_id):
+        if category == RankCategory.Fastest:
+            return self._get_estimated_fastest(user_ids, track_id)
+        elif category == RankCategory.MostAccurate:
+            return self._get_estimated_most_accurate(user_ids, track_id)
+
+    def get_questionnaire_comparison(self, category: RankCategory):
+        user_ids = self.data_frame["UserId"].unique().tolist()
+        best_time_data = self.get_min_by_input(ResultParam.Time)
+        best_accuracy_data = self.get_min_by_input(ResultParam.MeanError)
+
+        actual_data = best_time_data if category == RankCategory.Fastest else best_accuracy_data
+
+        data = {
+            "UserId": [result.user_id for result in self.question_repo.results if result.user_id in user_ids],
+            "EstimatedTrack1": self._get_estimated_data(category, user_ids, 1),
+            "ActualTrack1": self._get_actual_data(actual_data, 1),
+            "EstimatedTrack2": self._get_estimated_data(category, user_ids, 2),
+            "ActualTrack2": self._get_actual_data(actual_data, 2),
+            "EstimatedTrack3": self._get_estimated_data(category, user_ids, 3),
+            "ActualTrack3": self._get_actual_data(actual_data, 3),
+        }
+        data_frame = pd.DataFrame(data)
+
+        comparison_data = {
+            "UserId": data_frame["UserId"],
+            "Track1_Correct": list(zip(
+                data_frame["EstimatedTrack1"] == data_frame["ActualTrack1"],
+                data_frame["EstimatedTrack1"],
+                data_frame["ActualTrack1"]
+            )),
+            "Track2_Correct": list(zip(
+                data_frame["EstimatedTrack2"] == data_frame["ActualTrack2"],
+                data_frame["EstimatedTrack2"],
+                data_frame["ActualTrack2"]
+            )),
+            "Track3_Correct": list(zip(
+                data_frame["EstimatedTrack3"] == data_frame["ActualTrack3"],
+                data_frame["EstimatedTrack3"],
+                data_frame["ActualTrack3"]
+            )),
+        }
+
+        comparison_df = pd.DataFrame(comparison_data)
+        return comparison_df
+
+    def get_best(self, param: ResultParam, count: int, input_type: InputType, low_to_high: bool = True):
+        if input_type is None:
+            user_mean_error = self.data_frame.groupby("UserId")[param.name].mean()
+        else:
+            user_mean_error = self.data_frame[self.data_frame['InputCategorized']==input_type.name].groupby("UserId")[param.name].mean()
+        if low_to_high:
+            return user_mean_error.nsmallest(count)
+        return user_mean_error.nlargest(count)

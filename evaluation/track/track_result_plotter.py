@@ -1,15 +1,17 @@
 from typing import List
 
+import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
+from matplotlib.colors import ListedColormap
 from pandas.core.interchange.dataframe_protocol import DataFrame
 
-from evaluation.common import InputFilter, ResultParam
+from evaluation.common import InputFilter, ResultParam, RankCategory, InputType
 from evaluation.questionnaire.questionnaire_repository import QuestionnaireRepository
 from evaluation.track.track_repository import TrackRepository
 import re
 
-plt.rcParams['figure.dpi'] = 300  # Set resolution to 300 DPI
+plt.rcParams['figure.dpi'] = 300
 plt.rcParams['font.family'] = "Tahoma"
 
 class TrackResultPlotter:
@@ -22,13 +24,20 @@ class TrackResultPlotter:
 
     def plot_result(self, input: DataFrame, result_param: ResultParam, input_filter: InputFilter):
         # Group the data and calculate mean and std
-        input_types = ['Touch_Gesture', 'Touch_Joystick', 'TUI_Joystick', 'TUI_Car']
+        input_types = ['TouchGesture', 'TouchJoystick', 'TuiJoystick', 'TuiCar']
 
         grouped_stats = input.groupby(['Track', input_filter.name])[result_param.name].agg(['mean', 'std']).reset_index()
         cmap = plt.cm.RdYlGn_r
 
         # Create figure with three subplots
         category_name = " ".join(re.split('(?<=.)(?=[A-Z])', result_param.name))
+
+        category_unit = "Meter"
+        if result_param == ResultParam.Time:
+            category_unit = "Seconds"
+        elif result_param == ResultParam.ZoomChange or result_param == ResultParam.SummaryScore:
+            category_unit = ""
+        category_unit = "" if category_unit == "" else f"(in {category_unit})"
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
         fig.suptitle(f'{category_name} by Track and Input Type')
 
@@ -52,8 +61,17 @@ class TrackResultPlotter:
 
             # Customize plot
             ax.set_title(f'Strecke {track}')
-
-            ax.set_ylabel(f'{category_name} (in Meter)')
+            if result_param == ResultParam.MeanError or result_param == ResultParam.MedianError:
+                ax.set_ylim(-0.5, 3.5)
+            elif result_param == ResultParam.Time:
+                ax.set_ylim(0.0, 270.0)
+            elif result_param == ResultParam.DeltaDistance:
+                ax.set_ylim(-50.0, 120.0)
+            elif result_param == ResultParam.ZoomChange:
+                ax.set_ylim(-2.5, 8.0)
+            elif result_param == ResultParam.SummaryScore:
+                ax.set_ylim(0.0, 4.0)
+            ax.set_ylabel(f'{category_name} {category_unit}')
 
             # Rotate x-axis labels for better readability
             ax.tick_params(axis='x', rotation=45)
@@ -61,20 +79,26 @@ class TrackResultPlotter:
             # Add value labels on bars
             for i, bar in enumerate(bars):
                 height = bar.get_height()
-                bar.set_facecolor(cmap(norm(height)))
+                if height == 0:
+                    continue
+                # bar.set_facecolor(cmap(norm(height)))
                 ax.text(bar.get_x() + bar.get_width() / 2., 0,
                         f'{height:.2f}',
                         ha='center', va='bottom')
                 std = data['std'][i]
-                ax.text(bar.get_x() + bar.get_width() / 2., height + std,
+                ax.text(bar.get_x() + bar.get_width() / 2., height + std +(0.01 * ax.get_ylim()[1]),
                         f'σ = {std:.2f}',
                         ha='center', va='bottom')
+                ax.text(bar.get_x() + bar.get_width() / 2., height + std + (0.07 * ax.get_ylim()[1]),
+                        f"CV = {std / height:.2f}",
+                        ha='center', va='bottom')
+
 
         plt.tight_layout()
         plt.show()
 
     def print_result(self, result_param: ResultParam, input_filter: InputFilter, aggfunc: str, min: float = None, max: float = None, plot=False, color=False):
-        fixed_order = ["Touch_Gesture", "Touch_Joystick", "TUI_Joystick", "TUI_Car"]
+        fixed_order = ["TouchGesture", "TouchJoystick", "TuiJoystick", "TuiCar"]
         table = self.track_repo.data_frame.pivot_table(
             index=input_filter.name, columns="Track", values=result_param.name, aggfunc=[aggfunc], sort=False)
         if input_filter == InputFilter.InputAll:
@@ -87,27 +111,55 @@ class TrackResultPlotter:
                 axis=0, cmap='Reds', vmin=min, vmax=max)
         return style.format(precision=2)
 
-    def compare_with_questionnaire(self):
-        user_ids = self.track_repo.data_frame["UserId"].unique().tolist()
-        best_time_data = self.track_repo.get_min_by_input(ResultParam.Time)
-        best_accuracy_data = self.track_repo.get_min_by_input(
-            ResultParam.MeanError)
-        # return data.loc[data["Track"] == 1]["InputAll"].tolist()
-        best_time_data = {
-            "UserId": [result.user_id for result in self.question_repo.results if result.user_id in user_ids],
-            "Ranking": [result.ranking.values() for result in self.question_repo.results if result.user_id in user_ids],
-            "EstimatedFastestTrack1": [result.fastest["Track 1"].name for result in self.question_repo.results if result.user_id in user_ids],
-            "ActualFastestTrack1": best_time_data.loc[best_time_data["Track"] == 1]["InputAll"].tolist(),
-            "EstimatedMostAccurateTrack1": [result.most_accurate["Track 1"].name for result in self.question_repo.results if result.user_id in user_ids],
-            "ActualMostAccurateTrack1": best_accuracy_data.loc[best_accuracy_data["Track"] == 1]["InputAll"].tolist(),
-            "EstimatedFastestTrack2": [result.fastest["Track 2"].name for result in self.question_repo.results if result.user_id in user_ids],
-            "ActualFastestTrack2": best_time_data.loc[best_time_data["Track"] == 2]["InputAll"].tolist(),
-            "EstimatedMostAccurateTrack2": [result.most_accurate["Track 2"].name for result in self.question_repo.results if result.user_id in user_ids],
-            "ActualMostAccurateTrack2": best_accuracy_data.loc[best_accuracy_data["Track"] == 2]["InputAll"].tolist(),
-            "EstimatedFastestTrack3": [result.fastest["Track 3"].name for result in self.question_repo.results if result.user_id in user_ids],
-            "ActualFastestTrack3": best_time_data.loc[best_time_data["Track"] == 3]["InputAll"].tolist(),
-            "EstimatedMostAccurateTrack3": [result.most_accurate["Track 3"].name for result in self.question_repo.results if result.user_id in user_ids],
-            "ActualMostAccurateTrack3": best_accuracy_data.loc[best_accuracy_data["Track"] == 3]["InputAll"].tolist(),
-        }
-        data_frame = pd.DataFrame(best_time_data)
-        return data_frame.style.format()
+    def print_questionnaire_comparison(self, category: RankCategory):
+        custom_cmap = ListedColormap(['#fca697', '#97fca9'])
+        result = self.track_repo.get_questionnaire_comparison(category)
+
+        bool_columns = [col for col in result.columns if col.endswith('_Correct')]
+        matrix_data = np.array([[cell[0] for cell in result[col]] for col in bool_columns])
+        total_values = matrix_data.size
+        true_values = np.sum(matrix_data)
+        percentage = (true_values / total_values) * 100
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Create the heatmap
+        cmap = plt.cm.RdYlGn  # Red-Yellow-Green colormap
+        im = ax.matshow(matrix_data, cmap=custom_cmap)
+
+        # Add colorbar
+        # plt.colorbar(im)
+
+        track_labels = [col.replace('_Correct', '') for col in bool_columns]
+
+        plt.title(f"Does the expectation match the actual performance for {category.name}: {percentage:.2f}%")
+
+        # Add labels
+        ax.set_yticks(np.arange(len(track_labels)))
+        ax.set_xticks(np.arange(len(result)))
+        ax.set_yticklabels(track_labels)
+        ax.set_xticklabels(result['UserId'], rotation=45, ha='left')
+
+        # Add text annotations in each cell
+        for i in range(len(track_labels)):
+            for j in range(len(result)):
+                # Get the tuple values
+                is_correct, estimated, actual = result[bool_columns[i]].iloc[j]
+                text = ""
+                if is_correct:
+                    text = f"{estimated}"
+                else:
+                    text = f"{estimated}\n\n{actual}"
+                ax.text(j, i, text, ha='center', va='center', color='black', fontsize=6)
+
+        # Adjust layout to prevent label cutoff
+        plt.tight_layout()
+
+        # Show the plot
+        plt.show()
+
+    def print_usage_frequency_relations(self, result_param: ResultParam, count: int, input_type: InputType = None, low_to_high: bool = True):
+        best_track_users = self.track_repo.get_best(result_param, count, input_type, low_to_high)
+        user_list = best_track_users.index.tolist()
+        usage_frequencies_for_users = self.question_repo.get_usage_frequency(user_list)
+        return pd.concat([best_track_users, usage_frequencies_for_users], axis=1)

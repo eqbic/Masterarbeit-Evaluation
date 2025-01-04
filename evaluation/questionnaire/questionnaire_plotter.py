@@ -60,10 +60,16 @@ class QuestionnairePlotter:
         ranking = self.repo.get_ranking()
         input_types = [input_type.name for input_type in ranking.keys()]
         points = list(ranking.values())
-        plt.bar(input_types, points, color=self.colors.values())
+        ax = plt.bar(input_types, points)
         plt.ylabel("Punkte")
         plt.title(
             "Sortiere die Varianten danach welche dir \nfür die Aufgabenstellung insgesamt am besten gefallen hat")
+
+        for i, point in enumerate(points):
+            text = f"{point} Pkt"
+            plt.text(i, 0.1, text,
+                     horizontalalignment='center',
+                     verticalalignment='bottom')
         plt.show()
 
         return self.repo.get_ranking_raw()
@@ -77,7 +83,7 @@ class QuestionnairePlotter:
 
         points = np.array(list(first_impressions.values()))
         points = points * 100
-        plt.bar(input_types, points, color=self.colors.values())
+        plt.bar(input_types, points)
 
         for i, (point, total) in enumerate(zip(points, total_numbers)):
             points_text = f"{total} ({point:.2f}%)"
@@ -99,9 +105,12 @@ class QuestionnairePlotter:
             input_types = [
                 input_type.name for input_type in v.keys()]
             points = list(v.values())
-
+            for i, point in enumerate(points):
+                axs_flat[k].text(i, 0.1, f"{point}",
+                        horizontalalignment='center',
+                        verticalalignment='bottom')
             axs_flat[k].set_title(f"Runde {k + 1}")
-            axs_flat[k].bar(input_types, points, color=self.colors.values())
+            axs_flat[k].bar(input_types, points)
 
     def mean_for_same_category(self, cell: tuple):
         if len(cell) == 1:
@@ -123,7 +132,7 @@ class QuestionnairePlotter:
             yerr=std_dev,
             capsize=5,
         )
-
+        ax.tick_params(axis='x', rotation=45)
         for bar, value in zip(ax.patches, mean_of_sum.values):
             bar.set_facecolor(cmap(norm(value)))
 
@@ -131,6 +140,7 @@ class QuestionnairePlotter:
             # Format std dev to 2 decimal places
             std_text = f'σ = {std:.2f}'
             value_text = f"{value:.2f}"
+            # cv_text = f"CV = {std / value:.2f}"
             # Position the text above each bar (including error bars)
             ax.text(i, value + std + 0.1, std_text,
                     horizontalalignment='center',
@@ -138,10 +148,14 @@ class QuestionnairePlotter:
             ax.text(i, 0.1, value_text,
                     horizontalalignment='center',
                     verticalalignment='bottom')
+            # ax.text(i, value + std + 0.35, cv_text,
+            #         horizontalalignment='center',
+            #         verticalalignment='bottom')
 
         # plt.axhline(y=5, linestyle='--', color='b')
         plt.yticks(range(0,6))
         plt.ylim(0, 6)
+        plt.tight_layout()
         plt.show()
         return answers
 
