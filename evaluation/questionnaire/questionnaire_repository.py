@@ -18,8 +18,8 @@ usage_frequencies = {
     "noch nie" : 0,
     "schon einmal genutzt": 1,
     "hin und wieder": 2,
-    "regelmäßig": 3,
-    "täglich": 4
+    "regelmäßig": 5,
+    "täglich": 8
 }
 
 
