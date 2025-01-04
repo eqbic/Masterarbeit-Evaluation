@@ -50,13 +50,15 @@ class QuestionnaireRepository:
             result[k] = usage_frequencies[v]
         return result
 
-    def get_usage_frequency(self, users: List[int] = None):
+    def get_usage_frequency(self, users: List[int] = None, just_total: bool = False):
         usage_frequency = self.data_frame.set_index("UserId")[["UsageFrequency"]]
         all_devices = set().union(*usage_frequency["UsageFrequency"].values)
         dict_data = {device: [row.iloc[0].get(device, 0) for _, row in usage_frequency.iterrows()]
                      for device in all_devices}
         df_expanded = pd.DataFrame(dict_data, index=usage_frequency.index)
         df_expanded['Total'] = df_expanded.sum(axis=1)
+        if just_total:
+            df_expanded = df_expanded[['Total']]
         if users is None:
             return df_expanded
         return df_expanded.reindex(users)
