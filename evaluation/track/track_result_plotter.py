@@ -162,4 +162,4 @@ class TrackResultPlotter:
         best_track_users = self.track_repo.get_best(result_param, count, input_type, low_to_high)
         user_list = best_track_users.index.tolist()
         usage_frequencies_for_users = self.question_repo.get_usage_frequency(user_list, just_total=True)
-        return pd.concat([best_track_users, usage_frequencies_for_users], axis=1)
+        return pd.concat([best_track_users, usage_frequencies_for_users], axis=1).round(3)
