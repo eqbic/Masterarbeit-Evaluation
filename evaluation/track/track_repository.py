@@ -74,7 +74,7 @@ class TrackRepository:
     def _calculate_performance_score(self, time: float, error: float) -> float:
         if time == 0 and error == 0:
             return 1
-        return 1 - (2 * time * error) / (time + error)
+        return (2 * time * error) / (time + error)
 
     def _evaluate(self):
         for track in self.recorded_tracks:
