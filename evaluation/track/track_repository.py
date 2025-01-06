@@ -47,7 +47,7 @@ class TrackRepository:
             ResultParam.ZoomMax.name: [track.result.zoom_max for track in tracks],
             ResultParam.ZoomMean.name: [track.result.zoom_mean for track in tracks],
             ResultParam.ZoomChange.name: [track.result.zoom_change for track in tracks],
-            ResultParam.SummaryScore.name: [100 / (track.result.time * track.result.error_mean) for track in tracks],
+            ResultParam.CombinedScore.name: [100 / (track.result.time * track.result.error_mean) for track in tracks],
         }
         self.data_frame = pd.DataFrame(data)
 

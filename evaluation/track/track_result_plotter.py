@@ -35,7 +35,7 @@ class TrackResultPlotter:
         category_unit = "Meter"
         if result_param == ResultParam.Time:
             category_unit = "Seconds"
-        elif result_param == ResultParam.ZoomChange or result_param == ResultParam.SummaryScore:
+        elif result_param == ResultParam.ZoomChange or result_param == ResultParam.CombinedScore:
             category_unit = ""
         category_unit = "" if category_unit == "" else f"(in {category_unit})"
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
@@ -69,7 +69,7 @@ class TrackResultPlotter:
                 ax.set_ylim(-50.0, 120.0)
             elif result_param == ResultParam.ZoomChange:
                 ax.set_ylim(-2.5, 8.0)
-            elif result_param == ResultParam.SummaryScore:
+            elif result_param == ResultParam.CombinedScore:
                 ax.set_ylim(0.0, 4.0)
             ax.set_ylabel(f'{category_name} {category_unit}')
 
