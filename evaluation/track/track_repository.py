@@ -5,6 +5,7 @@ from typing import List
 
 import natsort
 import pandas as pd
+from pandas.core.interchange.dataframe_protocol import DataFrame
 
 from evaluation.common import InputType, Metaphor, ResultParam, RankCategory
 from evaluation.questionnaire.questionnaire_repository import QuestionnaireRepository
@@ -47,9 +48,33 @@ class TrackRepository:
             ResultParam.ZoomMax.name: [track.result.zoom_max for track in tracks],
             ResultParam.ZoomMean.name: [track.result.zoom_mean for track in tracks],
             ResultParam.ZoomChange.name: [track.result.zoom_change for track in tracks],
-            ResultParam.CombinedScore.name: [1.0 / (track.result.time * track.result.error_mean) for track in tracks],
+            # ResultParam.CombinedScore.name: [self._calculate_performance_score(track.result.time,track.result.error_mean) for track in tracks],
         }
         self.data_frame = pd.DataFrame(data)
+        self.data_frame = self.normalize_per_user_track(self.data_frame, ResultParam.MeanError)
+        self.data_frame = self.normalize_per_user_track(self.data_frame, ResultParam.Time)
+        self.data_frame = self.normalize_global(self.data_frame, ResultParam.MeanError)
+        self.data_frame = self.normalize_global(self.data_frame, ResultParam.Time)
+        self._set_performance_score()
+
+
+    # normalizes values per user and track
+    def normalize_per_user_track(self, dataset: pd.DataFrame, param: ResultParam) -> pd.DataFrame:
+        dataset[f"normalized_{param.name}"] = dataset.groupby(['UserId', 'Track'])[param.name].transform(lambda x: (x / x.max()))
+        return dataset
+
+    def normalize_global(self, dataset: pd.DataFrame, param: ResultParam) -> pd.DataFrame:
+        dataset[f"normalized_global_{param.name}"] = dataset.groupby('Track')[param.name].transform(lambda x: (x / x.max()))
+        return dataset
+
+    def _set_performance_score(self):
+        self.data_frame[ResultParam.CombinedScore.name] = self.data_frame.apply(lambda row: self._calculate_performance_score(row["normalized_Time"], row["normalized_MeanError"]), axis=1)
+        self.data_frame[ResultParam.CombinedScoreGlobal.name] = self.data_frame.apply(lambda row: self._calculate_performance_score(row["normalized_global_Time"], row["normalized_global_MeanError"]), axis=1)
+
+    def _calculate_performance_score(self, time: float, error: float) -> float:
+        if time == 0 and error == 0:
+            return 1
+        return 1 - (2 * time * error) / (time + error)
 
     def _evaluate(self):
         for track in self.recorded_tracks:

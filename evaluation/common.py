@@ -60,5 +60,6 @@ class ResultParam(Enum):
     ZoomMean = 9
     ZoomChange = 10
     CombinedScore = 11
+    CombinedScoreGlobal = 12
 
 

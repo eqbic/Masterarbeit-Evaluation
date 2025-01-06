@@ -70,7 +70,7 @@ class TrackResultPlotter:
             elif result_param == ResultParam.ZoomChange:
                 ax.set_ylim(-2.5, 8.0)
             elif result_param == ResultParam.CombinedScore:
-                ax.set_ylim(0.0, 0.04)
+                ax.set_ylim(0.0, 0.8)
             ax.set_ylabel(f'{category_name} {category_unit}')
 
             # Rotate x-axis labels for better readability
